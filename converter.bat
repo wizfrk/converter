@@ -20,20 +20,20 @@ set que="%~dpn0.q"
 ::-----------------------------------------------------------
 :: Location of HandbrakeCLI.exe (https://build.handbrake.fr/view/Nightlies/job/Windows/)
 :: 32 bit
-set hblci="%~dp0bin\HanBrakeCLI\HandBrakeCLI.exe"
+set hblci="%~dp0lib\HanBrakeCLI\HandBrakeCLI.exe"
 :: 64 bit
-if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set hblci="%~dp0bin\HanBrakeCLI\x86\HandBrakeCLI.exe"
+if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set hblci="%~dp0lib64\HandBrakeCLI\HandBrakeCLI.exe"
 
-:: Handbrake options (https://trac.handbrake.fr/wiki/CLIGuide)
-set hbopt="--preset "Normal" -s 1  --subtitle-default --subtitle-burn --optimize"
+:: Handbrake options (https://trac.handbrake.fr/wiki/CLIGuide 
+set hbopt="\--preset \"Normal\" -s 1  --subtitle-default --subtitle-burn --optimize"
 
 :: Lame
 ::-----------------------------------------------------------
 :: Location of lame.exe
 :: 32 bit
-set lame="%~dp0bin\lame\lame.exe"
+set lame="%~dp0lib\lame\lame.exe"
 :: 64 bit
-if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set lame="%~dp0bin\lame\x86\lame.exe"
+if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set lame="%~dp0lib64\lame\lame.exe"
 
 :: Lame options (http://lame.cvs.sourceforge.net/viewvc/lame/lame/USAGE)
 set lameopt=
@@ -59,15 +59,13 @@ goto checkqueue
 :queue
 :: If input is a file, add to the end of queue.
 if exist "%~1" (
-echo Adding %~1 to queue.
-call :addline %~1
+call :addline "%~1"
 )
-
 :: If Directory write all files to the end of queue.
 if exist "%~1\*" (
+echo Directory %~1\ exists.
 echo Adding contents of %~1 to queue.
 for /r "%~1" %%i in (*) do (
-echo Adding %~1 to queue.
 call :addline %%i
 )
 )
@@ -100,6 +98,7 @@ goto:eof
 
 :addline
 :: Add line to end of queue file.
+echo Adding %~1 to queue.
 echo %~1>> %que%
 goto:eof
 
@@ -118,7 +117,7 @@ if "%~x1"==".mp3" echo Already proper format.
 if "%~x1"==".mp4" echo Already proper format.
 
 if "%~x1"==".m4v" do ren "%~1" "%~n1.mp4"
-if "%~x1"==".mkv" call :convertmp4 "%~1"
+if "%~x1"==".mkv" call :convertmp4 "%~1" 
 if "%~x1"==".avi" call :convertmp4 "%~1"
 if "%~x1"==".m2ts" call :convertmp4 "%~1"
 if "%~x1"==".wmv" call :convertmp4 "%~1"
@@ -127,10 +126,11 @@ if "%~x1"==".flac" call :convertmp3 "%~1"
 if "%~x1"==".wav" call :convertmp3 "%~1"
 if "%~x1"==".wma" call :convertmp3 "%~1"
 if "%~x1"==".m4a" call :convertmp3 "%~1"
-goto:eof
-)
+
 echo File format "%~x1" not handled by converter.
 goto:eof
+)
+echo "%1" does not exist.
 
 :convertmp4
 echo Trying to convert file to MP4.
