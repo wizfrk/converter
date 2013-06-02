@@ -3,7 +3,7 @@
 :: Converter
 :: By Wizfrk
 ::
-:: Usage: wizfrkconverter.bat "<file>"
+:: Usage: converter.bat "<file or folder>"
 ::
 :: To add to utorrent: Options>Preferences>Advanced>Run Program:
 :: cmd.exe /c start /min "<Path to Script>\conveter.bat" "%D\%F" ^& exit
@@ -14,7 +14,7 @@
 ::-----------------------------------------------------------
 
 :: Queue file
-set que="%~dpn0.q"
+set que="%APPDATA%\%~n0.queue"
 
 :: Hanbrake
 ::-----------------------------------------------------------
