@@ -3,7 +3,6 @@
 So I made a little script that makes converting files for my phone easier.  I thought I'd share it so others don't have to be as frustrated as I was with the same tasks.
 
 ## Features:
-## Features:
 Uses HandBrakeCli.exe to convert files to the "Normal" handbrake preset and automatically, burns in the first subtitles if available.
 Uses lame.exe to convert files to mp3.
 All files are created in the same directory as the original files.
