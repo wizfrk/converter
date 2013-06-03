@@ -25,7 +25,7 @@ set hblci="%~dp0lib\HanBrakeCLI\HandBrakeCLI.exe"
 if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set hblci="%~dp0lib64\HandBrakeCLI\HandBrakeCLI.exe"
 
 :: Handbrake options (https://trac.handbrake.fr/wiki/CLIGuide 
-set hbopt="\--preset \"Normal\" -s 1  --subtitle-default --subtitle-burn --optimize"
+set hbopt=--preset "Normal" -s 1  --subtitle-default --subtitle-burn --optimize
 
 :: Lame
 ::-----------------------------------------------------------
@@ -41,6 +41,8 @@ set lameopt=
 ::-----------------------------------------------------------
 :: Initialize
 ::-----------------------------------------------------------
+
+if "%~1"=="update" %hblci% -u
 
 :: Make queue file if it dosn't exist.
 if NOT exist %que% echo. 2>%que%
@@ -143,6 +145,8 @@ if exist "%~dpn1.mp4" (
 echo %~n1.mp4 decected. Delete to re-encode.
 goto:eof
 )
+echo %hblci% -i "%~1" -o "%~dpn1.mp4" %hbopt%
+pause
 %hblci% -i "%~1" -o "%~dpn1.mp4" %hbopt%
 goto:eof
 
