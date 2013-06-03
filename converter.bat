@@ -145,8 +145,6 @@ if exist "%~dpn1.mp4" (
 echo %~n1.mp4 decected. Delete to re-encode.
 goto:eof
 )
-echo %hblci% -i "%~1" -o "%~dpn1.mp4" %hbopt%
-pause
 %hblci% -i "%~1" -o "%~dpn1.mp4" %hbopt%
 goto:eof
 
