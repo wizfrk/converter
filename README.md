@@ -12,9 +12,3 @@ Download the archive.
 Extract it to preferred location.
 Drag and drop a (single) file or folder onto converter.bat
 The script will run, you can keep adding files the same way without interrupting the encode.
-
-## TODO:
-Drag and drop for multiple files.
-Documentation.
-Optimize encoding settings.
-Add cmd line options.

@@ -7,6 +7,9 @@
 ::
 :: To add to utorrent: Options>Preferences>Advanced>Run Program:
 :: cmd.exe /c start /min "<Path to Script>\conveter.bat" "%D\%F" ^& exit
+:: 
+:: Program log and queue files are stored in "<user folder>\AppData\Roaming\"
+::
 ::-----------------------------------------------------------
 
 ::-----------------------------------------------------------
@@ -15,6 +18,12 @@
 
 :: Queue file
 set que="%APPDATA%\%~n0.queue"
+
+:: Log File
+set log=
+:: Comment out the line below to disable logging.
+set log="%APPDATA%\%~n0.log"
+
 
 :: Hanbrake
 ::-----------------------------------------------------------
@@ -38,14 +47,25 @@ if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set lame="%~dp0lib64\lame\lame.exe"
 :: Lame options (http://lame.cvs.sourceforge.net/viewvc/lame/lame/USAGE)
 set lameopt=
 
+:: Proper Formats (extensions)
+set gdx=.mp3 .mp4
+:: Video Formats (extensions)
+set vidx=.mkv .avi .m2ts .wmv .m4v
+:: Audio Formats (extensions)
+set audx=.flac .wav .wma .m4a
+
+
+
 ::-----------------------------------------------------------
 :: Initialize
 ::-----------------------------------------------------------
 
 if "%~1"=="update" %hblci% -u
 
-:: Make queue file if it dosn't exist.
+:: Make program files if they don't exist.
 if NOT exist %que% echo. 2>%que%
+if NOT "%log%"=="" if NOT exist %log% echo. 2>%log%
+
 ::-----------------------------------------------------------
 :: Main Program
 ::-----------------------------------------------------------
@@ -54,36 +74,40 @@ if NOT exist %que% echo. 2>%que%
 
 :: No input handler (used for queue resume and testing)
 if "%~1"=="" ( 
-echo No input.
+call :print "No input."
 goto checkqueue
 )
 
 :queue
 :: If input is a file, add to the end of queue.
 if exist "%~1" (
-call :addline "%~1"
+
+call :print "Adding %~1 to queue."
+call :addline "%~1" %que% 
+
 )
 :: If Directory write all files to the end of queue.
 if exist "%~1\*" (
-echo Directory %~1\ exists.
-echo Adding contents of %~1 to queue.
+call :print "Directory %~1\ exists."
+call :print "Adding contents of %~1 to queue."
 for /r "%~1" %%i in (*) do (
-call :addline %%i
+call :print "Adding %%~i to queue."
+call :addline "%%~i" %que%
 )
 )
 
 :checkqueue
 :: Get first line.
-echo Checking queue.
+call :print "Checking queue."
 
 set /p line=<%que%
 
 if "%line%"=="" (
-echo Nothing in queue.
+call :print "Nothing in queue."
 goto end
 )
 
-call :handleinput "%line%"
+call :handleinput %line%
 call :deleteline %que%
 
 set line=
@@ -91,73 +115,102 @@ set line=
 goto checkqueue
 
 :end
-echo Exiting.
+call :print "Exiting."
 goto:eof
 
 ::-----------------------------------------------------------
 :: Functions
 ::-----------------------------------------------------------
 
+:print
+echo %~1
+if NOT "%log%"=="" call :log "%~1"
+goto:eof
+
+:log 
+echo %date% %time% %~1>> %log%
+goto:eof
+
 :addline
 :: Add line to end of queue file.
-echo Adding %~1 to queue.
-echo %~1>> %que%
+call :print "Adding %1 to the end of %2"
+echo %1>> %2
 goto:eof
 
 :deleteline
 :: Delete first line in queue file.
+call :print "Removing first line from %~1"
 more +1 "%~1" > "%~1.tmp"
 move "%~1.tmp" "%~1"
 goto:eof
 
 :handleinput
 :: Check if exists and call apriopriate function to handle extension.
-echo Trying to handle %~1
+call :print "Trying to handle %~1"
+
 if exist "%~1" (
-:: Compatible formats.
-if "%~x1"==".mp3" echo Already proper format.
-if "%~x1"==".mp4" echo Already proper format.
 
-if "%~x1"==".m4v" do ren "%~1" "%~n1.mp4"
-if "%~x1"==".mkv" call :convertmp4 "%~1" 
-if "%~x1"==".avi" call :convertmp4 "%~1"
-if "%~x1"==".m2ts" call :convertmp4 "%~1"
-if "%~x1"==".wmv" call :convertmp4 "%~1"
+for %%i in (%gdx%) do ( if "%~x1"=="%%i" goto properformat )
+for %%i in (%vidx%) do ( if "%~x1"=="%%i" goto isvideo )
+for %%i in (%audx%) do ( if "%~x1"=="%%i" goto isaudio )
 
-if "%~x1"==".flac" call :convertmp3 "%~1"
-if "%~x1"==".wav" call :convertmp3 "%~1"
-if "%~x1"==".wma" call :convertmp3 "%~1"
-if "%~x1"==".m4a" call :convertmp3 "%~1"
+:badformat 
+call :print "File type %~x1 not compatible with script."
+goto:eof
 
-echo File format "%~x1" not handled by converter.
+:properformat
+call :print "File type %~x1 is the proper format."
+goto:eof
+
+:isvideo 
+call :convertmp4 "%~1"
+goto:eof
+
+:isaudio 
+call :convertmp3 "%~1"
 goto:eof
 )
-echo "%1" does not exist.
+
+call :print "%1 does not exist."
+goto:eof
 
 :convertmp4
-echo Trying to convert file to MP4.
-tasklist /FI "IMAGENAME eq HandBrakeCLI.exe" 2>NUL | find /I /N "HandbrakeCLI.exe">NUL
-if "%ERRORLEVEL%"=="0" (
-echo A Handbreake process detected, aborting.
-exit
-)
-if exist "%~dpn1.mp4" (
-echo %~n1.mp4 decected. Delete to re-encode.
+:: Convert input file to mp4 format.
+call :print "Trying to convert %~1 to %~n1.mp4."
+
+if "%~x1"==".m4v" (
+ren "%~1" "%~n1.mp4"
+call :print "%~1 renamed %~n1.mp4"
 goto:eof
 )
+
+tasklist /FI "IMAGENAME eq HandBrakeCLI.exe" 2>NUL | find /I /N "HandbrakeCLI.exe">NUL
+if "%ERRORLEVEL%"=="0" (
+call :print "A Handbreake process detected, aborting."
+exit
+)
+
+if exist "%~dpn1.mp4" (
+call :print "%~n1.mp4 decected. Delete to re-encode."
+goto:eof
+)
+call :print "Using Handbrake with: %hbopt%"
 %hblci% -i "%~1" -o "%~dpn1.mp4" %hbopt%
 goto:eof
 
 :convertmp3
-echo Trying to convert file to MP3.
+:: Convert input file to mp3 format.
+call :print "Trying to convert %~1 to %~dpn1.mp3."
+
 tasklist /FI "IMAGENAME eq lame.exe" 2>NUL | find /I /N "lame.exe">NUL
 if "%ERRORLEVEL%"=="0" (
-echo A lame.exe process detected, aborting.
+call :print "A lame.exe process detected, aborting."
 exit
 )
 if exist "%~dpn1.mp3" (
-echo %~dpn1.mp3 decected. Delete to re-encode.
+call :print "%~dpn1.mp3 decected. Delete to re-encode."
 goto:eof
 )
+call :print "Using Lame with: %lameopt%"
 %lame% %lameopt% "%~1" "%~dpn1.mp3"
 goto:eof
