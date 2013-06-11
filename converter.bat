@@ -1,12 +1,11 @@
 @echo off
+
 ::-----------------------------------------------------------
 :: Converter
 :: By Wizfrk
 ::
-:: Usage: converter.bat "<file or folder>"
+:: Usage: converter.bat "<files and/or folders>"
 ::
-:: To add to utorrent: Options>Preferences>Advanced>Run Program:
-:: cmd.exe /c start /min "<Path to Script>\conveter.bat" "%D\%F" ^& exit
 :: 
 :: Program log and queue files are stored in "<user folder>\AppData\Roaming\"
 ::
@@ -17,13 +16,7 @@
 ::-----------------------------------------------------------
 
 :: Queue file
-set que="%APPDATA%\%~n0.queue"
-
-:: Log File
-set log=
-:: Comment out the line below to disable logging.
-set log="%APPDATA%\%~n0.log"
-
+set que=%APPDATA%\%~n0.queue.txt
 
 :: Hanbrake
 ::-----------------------------------------------------------
@@ -54,17 +47,12 @@ set vidx=.mkv .avi .m2ts .wmv .m4v
 :: Audio Formats (extensions)
 set audx=.flac .wav .wma .m4a
 
-
-
 ::-----------------------------------------------------------
 :: Initialize
 ::-----------------------------------------------------------
 
-if "%~1"=="update" %hblci% -u
-
 :: Make program files if they don't exist.
-if NOT exist %que% echo. 2>%que%
-if NOT "%log%"=="" if NOT exist %log% echo. 2>%log%
+if NOT exist "%que%" echo. 2>"%que%"
 
 ::-----------------------------------------------------------
 :: Main Program
@@ -72,49 +60,26 @@ if NOT "%log%"=="" if NOT exist %log% echo. 2>%log%
 
 :start
 
-:: No input handler (used for queue resume and testing)
-if "%~1"=="" ( 
-call :print "No input."
-goto checkqueue
-)
-
-:queue
-:: If input is a file, add to the end of queue.
-if exist "%~1" (
-
-call :print "Adding %~1 to queue."
-call :addline "%~1" %que% 
-
-)
-:: If Directory write all files to the end of queue.
-if exist "%~1\*" (
-call :print "Directory %~1\ exists."
-call :print "Adding contents of %~1 to queue."
-for /r "%~1" %%i in (*) do (
-call :print "Adding %%~i to queue."
-call :addline "%%~i" %que%
-)
-)
-
-:checkqueue
-:: Get first line.
-call :print "Checking queue."
-
-set /p line=<%que%
-
-if "%line%"=="" (
-call :print "Nothing in queue."
+if "%~1"=="update" (
+call :print "Updating binaries."
+%hblci% -u
 goto end
 )
 
-call :handleinput %line%
-call :deleteline %que%
+if "%~1"=="" ( 
+call :print "No input."
+goto check
+)
 
-set line=
+:dragdroploop
+call :handleinput "%~1"
+shift
+if not "%~1"=="" goto dragdroploop
 
-goto checkqueue
+:check
+call :checkqueue
 
-:end
+:end 
 call :print "Exiting."
 goto:eof
 
@@ -122,61 +87,78 @@ goto:eof
 :: Functions
 ::-----------------------------------------------------------
 
-:print
-echo %~1
-if NOT "%log%"=="" call :log "%~1"
+:checkqueue
+:: Get first line.
+call :print "Checking queue."
+
+for /f "delims=" %%f in (%que%) do (
+
+call :print "Found queued item: %%~f"
+call :handleinput "%%~f"
+call :deleteline %que%
+)
+call :print "Nothing in que."
 goto:eof
 
-:log 
-echo %date% %time% %~1>> %log%
-goto:eof
-
-:addline
-:: Add line to end of queue file.
-call :print "Adding %1 to the end of %2"
-echo %1>> %2
-goto:eof
-
-:deleteline
-:: Delete first line in queue file.
-call :print "Removing first line from %~1"
-more +1 "%~1" > "%~1.tmp"
-move "%~1.tmp" "%~1"
-goto:eof
 
 :handleinput
 :: Check if exists and call apriopriate function to handle extension.
-call :print "Trying to handle %~1"
+call :print "Checking if %~1 exists."
 
 if exist "%~1" (
+call :print "It does!"
 
-for %%i in (%gdx%) do ( if "%~x1"=="%%i" goto properformat )
-for %%i in (%vidx%) do ( if "%~x1"=="%%i" goto isvideo )
-for %%i in (%audx%) do ( if "%~x1"=="%%i" goto isaudio )
+call :print "Checking %~1 type."
+
+if exist "%~1\*" (
+goto :isdirectory
+)
+
+for %%i in (%gdx%) do ( 
+if "%~x1"=="%%i" goto properformat
+)
+for %%i in (%vidx%) do ( 
+if "%~x1"=="%%i" goto isvideo
+)
+for %%i in (%audx%) do (
+if "%~x1"=="%%i" goto isaudio
+)
+
+:isdirectory
+call :print "Input is a directory."
+call :queue "%~1"
+goto:eof
 
 :badformat 
 call :print "File type %~x1 not compatible with script."
 goto:eof
 
 :properformat
-call :print "File type %~x1 is the proper format."
+call :print "File type %~x1 is already the proper format."
 goto:eof
 
 :isvideo 
+call :print "File is video."
 call :convertmp4 "%~1"
 goto:eof
 
 :isaudio 
+call :print "File is audio."
 call :convertmp3 "%~1"
 goto:eof
 )
 
-call :print "%1 does not exist."
+call :print "%~1 does not exist."
 goto:eof
 
 :convertmp4
 :: Convert input file to mp4 format.
 call :print "Trying to convert %~1 to %~n1.mp4."
+
+if exist "%~dpn1.mp4" (
+call :print "%~n1.mp4 decected. Delete to re-encode."
+goto:eof
+)
 
 if "%~x1"==".m4v" (
 ren "%~1" "%~n1.mp4"
@@ -186,12 +168,8 @@ goto:eof
 
 tasklist /FI "IMAGENAME eq HandBrakeCLI.exe" 2>NUL | find /I /N "HandbrakeCLI.exe">NUL
 if "%ERRORLEVEL%"=="0" (
-call :print "A Handbreake process detected, aborting."
-exit
-)
-
-if exist "%~dpn1.mp4" (
-call :print "%~n1.mp4 decected. Delete to re-encode."
+call :print "A Handbreake process detected, adding %~1 to queue."
+call :queue "%~1"
 goto:eof
 )
 call :print "Using Handbrake with: %hbopt%"
@@ -202,15 +180,55 @@ goto:eof
 :: Convert input file to mp3 format.
 call :print "Trying to convert %~1 to %~dpn1.mp3."
 
-tasklist /FI "IMAGENAME eq lame.exe" 2>NUL | find /I /N "lame.exe">NUL
-if "%ERRORLEVEL%"=="0" (
-call :print "A lame.exe process detected, aborting."
-exit
-)
 if exist "%~dpn1.mp3" (
 call :print "%~dpn1.mp3 decected. Delete to re-encode."
 goto:eof
 )
+
+tasklist /FI "IMAGENAME eq lame.exe" 2>NUL | find /I /N "lame.exe">NUL
+if "%ERRORLEVEL%"=="0" (
+call :print "A lame.exe process detected, adding %~1 to queue."
+call :queue "%~1"
+goto:eof
+)
+
 call :print "Using Lame with: %lameopt%"
 %lame% %lameopt% "%~1" "%~dpn1.mp3"
+goto:eof
+
+:print
+echo [%date% %time%] %~1
+goto:eof
+
+:addline
+:: Add line to end of queue file.
+call :print "Adding %~1 to the end of %~2"
+echo "%~1">> "%~2"
+goto:eof
+
+:deleteline
+:: Delete first line in queue file.
+call :print "Removing first line from %~1"
+more +1 "%~1" > "%~1.tmp"
+move "%~1.tmp" "%~1"
+goto:eof
+
+
+:queue
+:: If Directory write all files to the end of queue.
+call :print "Attempting to queue %~1"
+
+if exist "%~1\*" (
+call :print "%~1 is directory. Adding its contents to queue."
+for /R "%~1" %%i in (*.*) do (
+call :print "Adding %%~i to queue."
+call :addline "%%~i" "%que%"
+))
+
+:: If input is a file, add to the end of queue.
+if exist "%~1" (
+call :print "Adding %~1 to queue."
+call :addline "%~1" "%que%" 
+)
+
 goto:eof
