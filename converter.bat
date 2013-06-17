@@ -4,10 +4,13 @@
 :: Converter
 :: By Wizfrk
 ::
-:: Usage: converter.bat "<files and/or folders>"
+:: Syntax: converter.bat [options] [input]
 ::
+:: Options: -u 			Used to update binary files.
+::          -m			Used to run a minimized instance of the script.
+::          -t [*] [*]  Used when using with utorrent.
 :: 
-:: Program log and queue files are stored in "<user folder>\AppData\Roaming\"
+:: Program queue file is stored in "<user folder>\AppData\Roaming\"
 ::
 ::-----------------------------------------------------------
 
@@ -15,18 +18,21 @@
 :: Variables
 ::-----------------------------------------------------------
 
+:: Script Path
+set root=%~0
+
 :: Queue file
 set que=%APPDATA%\%~n0.queue.txt
 
 :: Hanbrake
 ::-----------------------------------------------------------
-:: Location of HandbrakeCLI.exe (https://build.handbrake.fr/view/Nightlies/job/Windows/)
+:: Location of HandbrakeCLI.exe ( https://build.handbrake.fr/view/Nightlies/job/Windows/ )
 :: 32 bit
 set hblci="%~dp0lib\HanBrakeCLI\HandBrakeCLI.exe"
 :: 64 bit
 if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set hblci="%~dp0lib64\HandBrakeCLI\HandBrakeCLI.exe"
 
-:: Handbrake options (https://trac.handbrake.fr/wiki/CLIGuide 
+:: Handbrake options ( https://trac.handbrake.fr/wiki/CLIGuide )
 set hbopt=--preset "Normal" -s 1  --subtitle-default --subtitle-burn --optimize
 
 :: Lame
@@ -37,7 +43,7 @@ set lame="%~dp0lib\lame\lame.exe"
 :: 64 bit
 if "%PROCESSOR_ARCHITECTURE%"=="AMD64" set lame="%~dp0lib64\lame\lame.exe"
 
-:: Lame options (http://lame.cvs.sourceforge.net/viewvc/lame/lame/USAGE)
+:: Lame options ( http://lame.cvs.sourceforge.net/viewvc/lame/lame/USAGE )
 set lameopt=
 
 :: Proper Formats (extensions)
@@ -46,6 +52,14 @@ set gdx=.mp3 .mp4
 set vidx=.mkv .avi .m2ts .wmv .m4v
 :: Audio Formats (extensions)
 set audx=.flac .wav .wma .m4a
+
+
+:: Options
+set minimized=
+set update=
+
+:: Input
+set input=
 
 ::-----------------------------------------------------------
 :: Initialize
@@ -59,97 +73,149 @@ if NOT exist "%que%" echo. 2>"%que%"
 ::-----------------------------------------------------------
 
 :start
-
-if "%~1"=="update" (
-call :print "Updating binaries."
-%hblci% -u
-goto end
-)
-
 if "%~1"=="" ( 
-call :print "No input."
-goto check
+	call :print "No input."
+	goto check
 )
 
-:dragdroploop
-call :handleinput "%~1"
-shift
-if not "%~1"=="" goto dragdroploop
+:optionloop
+:: Reads through all command line arguments and sepreates the options from input.
+if "%~1"=="" goto handle
+
+if "%~1"=="-m" (
+	set minimized=-m
+	shift
+	goto optionloop
+)
+
+if "%~1"=="-u" (
+	set update=-u
+	shift
+	goto optionloop
+)
+
+if "%~1"=="-t" (
+	call :print "Using uTorrent Integration format."
+	if exist "%~2" if "%~3"=="" (
+		set input="%~2"
+	)
+	if exist "%~2%~3" (
+		set input="%~2%~3"
+	)
+	if exist "%~2\%~3" (
+		set input="%~2\%~3"
+	)
+	shift
+	shift
+	shift
+	goto optionloop
+)
+setdelayedexpansion
+if exist "%~1" (
+	setlocal ENABLEDELAYEDEXPANSION
+	set input="%~1" !input!
+	call :print "%input%"
+	shift
+	pause
+	endlocal
+	call :print "%input%"
+	goto optionloop
+)
+
+:handle
+pause
+:: handles all options and input.
+if not "%minimized%"=="" (
+	call :print "Launching in minimized window."
+	start /min "Wizfrk Converter Script" "%root%" %update% %input%
+	exit
+	::goto end
+)
+
+if not "%update%"=="" (
+	call :print "Updating binaries."
+	%hblci% -u
+)
+
+call :handleinput %input%
 
 :check
+:: Check queue for files and handles them. 
 call :checkqueue
 
 :end 
 call :print "Exiting."
 goto:eof
-
+endlocal 
 ::-----------------------------------------------------------
 :: Functions
 ::-----------------------------------------------------------
 
 :checkqueue
+
 :: Get first line.
 call :print "Checking queue."
 
-for /f "delims=" %%f in (%que%) do (
-
-call :print "Found queued item: %%~f"
-call :handleinput "%%~f"
-call :deleteline %que%
+for /f  %%f in (%que%) do (
+	call :print "Found queued item: %%~f"
+	call :handleinput "%%~f"
+	call :deleteline %que%
 )
 call :print "Nothing in que."
 goto:eof
 
 
 :handleinput
-:: Check if exists and call apriopriate function to handle extension.
+:: Check if exists and call appropriate function to handle extension.
+
+if "%~1"=="" goto eof
 call :print "Checking if %~1 exists."
-
+if NOT exist "%~1" call :print "%~1 does not exist."
 if exist "%~1" (
-call :print "It does!"
+	call :print "It does!"
 
-call :print "Checking %~1 type."
+	call :print "Checking %~1 type."
 
-if exist "%~1\*" (
-goto :isdirectory
+	if exist "%~1\*" (
+		goto :isdirectory
+	)
+
+	for %%i in (%gdx%) do ( 
+		if "%~x1"=="%%i" goto properformat
+	)
+	for %%i in (%vidx%) do ( 
+		if "%~x1"=="%%i" goto isvideo
+	)
+	for %%i in (%audx%) do (
+		if "%~x1"=="%%i" goto isaudio
+	)
+
+	:isdirectory
+	call :print "Input is a directory."
+	call :queue "%~1"
+	goto:eof
+
+	:badformat 
+	call :print "File type %~x1 not compatible with script."
+	goto:eof
+
+	:properformat
+	call :print "File type %~x1 is already the proper format."
+	goto:eof
+
+	:isvideo 
+	call :print "File is video."
+	call :convertmp4 "%~1"
+	goto:eof
+
+	:isaudio 
+	call :print "File is audio."
+	call :convertmp3 "%~1"
+	goto:eof
 )
+shift
+goto handleinput
 
-for %%i in (%gdx%) do ( 
-if "%~x1"=="%%i" goto properformat
-)
-for %%i in (%vidx%) do ( 
-if "%~x1"=="%%i" goto isvideo
-)
-for %%i in (%audx%) do (
-if "%~x1"=="%%i" goto isaudio
-)
-
-:isdirectory
-call :print "Input is a directory."
-call :queue "%~1"
-goto:eof
-
-:badformat 
-call :print "File type %~x1 not compatible with script."
-goto:eof
-
-:properformat
-call :print "File type %~x1 is already the proper format."
-goto:eof
-
-:isvideo 
-call :print "File is video."
-call :convertmp4 "%~1"
-goto:eof
-
-:isaudio 
-call :print "File is audio."
-call :convertmp3 "%~1"
-goto:eof
-)
-
-call :print "%~1 does not exist."
-goto:eof
 
 :convertmp4
 :: Convert input file to mp4 format.
